@@ -735,22 +735,20 @@ async function handleAPIProxy(request, env, pathname, search, origin) {
       console.error(`[EdgeOne Proxy] Error processing headers:`, error);
     }
 
-    // 创建代理请求
+    // 读取请求体为 ArrayBuffer（避免流式 body 需要 duplex 选项的问题）
     const hasBody = !['GET', 'HEAD'].includes(request.method);
-    const requestInit = {
+    let bodyData = null;
+    if (hasBody) {
+      bodyData = await request.arrayBuffer();
+    }
+
+    // 直接传 init 给 fetch()，不经过 new Request()
+    const response = await fetch(targetURL, {
       method: request.method,
       headers: headers,
-      body: hasBody ? request.body : null,
+      body: bodyData,
       redirect: 'follow'
-    };
-    // 发送body时，EdgeOne Makers要求设置 duplex: 'half'
-    if (hasBody) {
-      requestInit.duplex = 'half';
-    }
-    const proxyRequest = new Request(targetURL, requestInit);
-
-    // 发送请求
-    const response = await fetch(proxyRequest);
+    });
 
     // 处理响应头
     const responseHeaders = new Headers(response.headers);

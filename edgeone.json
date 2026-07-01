@@ -1,5 +1,7 @@
 {
   "cloudFunctions": {
+    "mainlandRegions": [],
+    "overseasRegions": ["ap-singapore"],
     "nodejs": {
       "maxDuration": 30
     }

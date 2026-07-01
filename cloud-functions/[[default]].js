@@ -657,8 +657,9 @@ ${Object.keys(API_CONFIGS).map(service => `  <url>
  * 处理API代理请求
  */
 async function handleAPIProxy(request, env, pathname, search, origin) {
+  let pathParts = [];
   try {
-    const pathParts = pathname.split('/').filter(Boolean);
+    pathParts = pathname.split('/').filter(Boolean);
     const service = pathParts[0];
 
     if (!API_CONFIGS[service]) {

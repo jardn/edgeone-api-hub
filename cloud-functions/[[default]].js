@@ -142,26 +142,38 @@ function getCurrentOrigin(request) {
 }
 
 /**
- * 获取URL路径信息，兼容EdgeOne Pages的request对象
+ * 获取URL路径信息，兼容EdgeOne Makers的request对象
+ * 注意：request.url 可能是内部域名（如 pages-scf），需要回退到 header 检测
  * @param {Request} request - 请求对象
- * @returns {Object} 包含pathname和search的对象
+ * @returns {Object} 包含pathname, search, origin的对象
  */
 function getUrlInfo(request) {
   console.log(`[EdgeOne] getUrlInfo - raw request.url: "${request.url}", type: ${typeof request.url}`);
 
+  // 内部域名列表（用于检测 request.url 是否包含内部代理域名）
+  const internalDomainPatterns = ['pages-scf', 'qcloudteo.com', 'edgeone.cool', 'dnsoe6.com', 'pages.dev'];
+
   try {
-    // 尝试标准URL解析
+    // 尝试标准URL解析（EdgeOne Makers 中 request.url 通常是完整URL）
     const url = new URL(request.url);
-    console.log(`[EdgeOne] Standard URL parse successful - pathname: "${url.pathname}", origin: "${url.origin}"`);
-    return {
-      pathname: url.pathname,
-      search: url.search,
-      origin: url.origin
-    };
+    const pathname = url.pathname;
+    const search = url.search;
+    let origin = url.origin;
+
+    // 关键修复：如果 origin 是内部域名，改用 header 检测真实域名
+    const hostLower = url.hostname.toLowerCase();
+    const isInternal = internalDomainPatterns.some(d => hostLower.includes(d));
+    if (isInternal) {
+      console.log(`[EdgeOne] ⚠️ request.url origin is internal: "${url.origin}", falling back to header detection`);
+      origin = getCurrentOrigin(request);
+    }
+
+    console.log(`[EdgeOne] URL parsed - pathname: "${pathname}", origin: "${origin}"`);
+    return { pathname, search, origin };
   } catch (error) {
     console.log(`[EdgeOne] Standard URL parse failed: ${error.message}`);
 
-    // EdgeOne Pages可能返回相对路径，手动解析
+    // request.url不是完整URL（相对路径），手动解析
     const urlString = request.url || '/';
     console.log(`[EdgeOne] Using manual parsing for: "${urlString}"`);
 
@@ -724,12 +736,18 @@ async function handleAPIProxy(request, env, pathname, search, origin) {
     }
 
     // 创建代理请求
-    const proxyRequest = new Request(targetURL, {
+    const hasBody = !['GET', 'HEAD'].includes(request.method);
+    const requestInit = {
       method: request.method,
       headers: headers,
-      body: ['GET', 'HEAD'].includes(request.method) ? null : request.body,
+      body: hasBody ? request.body : null,
       redirect: 'follow'
-    });
+    };
+    // 发送body时，EdgeOne Makers要求设置 duplex: 'half'
+    if (hasBody) {
+      requestInit.duplex = 'half';
+    }
+    const proxyRequest = new Request(targetURL, requestInit);
 
     // 发送请求
     const response = await fetch(proxyRequest);

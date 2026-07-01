@@ -78,9 +78,15 @@ function getCurrentOrigin(request) {
   // 方法1: 尝试从 request.url 直接提取（如果它是完整URL）
   try {
     const url = new URL(request.url);
-    if (url.origin && !url.origin.includes('localhost')) {
+    const hostname = url.hostname.toLowerCase();
+    const internalDomains = ['pages-scf', 'qcloudteo.com', 'edgeone.cool', 'dnsoe6.com', 'pages.dev'];
+    const isInternal = internalDomains.some(d => hostname.includes(d));
+    if (url.origin && !url.origin.includes('localhost') && !isInternal) {
       console.log(`[EdgeOne] ✅ Extracted origin from request.url: ${url.origin}`);
       return url.origin;
+    }
+    if (isInternal) {
+      console.log(`[EdgeOne] ⚠️ request.url origin is internal, checking headers...`);
     }
   } catch (e) {
     console.log(`[EdgeOne] request.url is relative, checking headers...`);
